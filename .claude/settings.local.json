@@ -3,7 +3,11 @@
     "allow": [
       "Bash(npm --version)",
       "Bash(npx --version)",
-      "Bash(npx create-next-app@latest . --typescript --tailwind --app --src-dir --import-alias \"@/*\" --no-eslint --use-npm --turbopack --yes)"
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --src-dir --import-alias \"@/*\" --no-eslint --use-npm --turbopack --yes)",
+      "Bash(npx shadcn@latest init --yes --base-color neutral)",
+      "Bash(npx shadcn@latest init --help)",
+      "Bash(npx shadcn@latest init -d -y)",
+      "Bash(npx shadcn@latest add input label card sonner separator -y)"
     ]
   }
 }
