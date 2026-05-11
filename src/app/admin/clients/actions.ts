@@ -5,9 +5,6 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { generateToken, hashToken } from "@/lib/tokens";
-import { cookies } from "next/headers";
-
-const ONCE_COOKIE = "client_token_once";
 
 const slugSchema = z
   .string()
@@ -77,16 +74,8 @@ export async function createClient(
     },
   });
 
-  const jar = await cookies();
-  jar.set(ONCE_COOKIE, JSON.stringify({ id: created.id, token: rawToken }), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/admin",
-    maxAge: 300,
-  });
-
   revalidatePath("/admin/clients");
-  redirect(`/admin/clients/${created.id}?fresh=1`);
+  redirect(`/admin/clients/${created.id}?fresh_token=${rawToken}`);
 }
 
 export async function rotateToken(clientId: string) {
@@ -96,16 +85,8 @@ export async function rotateToken(clientId: string) {
     data: { accessTokenHash: hashToken(rawToken) },
   });
 
-  const jar = await cookies();
-  jar.set(ONCE_COOKIE, JSON.stringify({ id: clientId, token: rawToken }), {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/admin",
-    maxAge: 300,
-  });
-
   revalidatePath(`/admin/clients/${clientId}`);
-  redirect(`/admin/clients/${clientId}?rotated=1`);
+  redirect(`/admin/clients/${clientId}?rotated_token=${rawToken}`);
 }
 
 const updateSchema = z.object({
@@ -152,18 +133,4 @@ export async function deleteClient(clientId: string) {
   revalidatePath("/admin/clients");
   revalidatePath("/admin");
   redirect("/admin/clients");
-}
-
-export async function consumeOneTimeToken(clientId: string) {
-  const jar = await cookies();
-  const cookie = jar.get(ONCE_COOKIE);
-  if (!cookie?.value) return null;
-  try {
-    const parsed = JSON.parse(cookie.value) as { id: string; token: string };
-    if (parsed.id !== clientId) return null;
-    jar.delete(ONCE_COOKIE);
-    return parsed.token;
-  } catch {
-    return null;
-  }
 }

@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
-import { consumeOneTimeToken } from "../actions";
 import { ClientEditForm } from "./client-edit-form";
 import { MagicLinkPanel } from "./magic-link-panel";
 import { DangerZone } from "./danger-zone";
@@ -21,7 +20,7 @@ export default async function ClientDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ fresh?: string; rotated?: string }>;
+  searchParams: Promise<{ fresh_token?: string; rotated_token?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -33,8 +32,7 @@ export default async function ClientDetailPage({
   });
   if (!client) notFound();
 
-  const oneTimeToken =
-    sp.fresh || sp.rotated ? await consumeOneTimeToken(id) : null;
+  const oneTimeToken = sp.fresh_token ?? sp.rotated_token ?? null;
 
   const hdrs = await headers();
   const host = hdrs.get("host") ?? "localhost:3000";
@@ -71,7 +69,7 @@ export default async function ClientDetailPage({
       {oneTimeToken && (
         <MagicLinkPanel
           link={`${origin}/c/${client.slug}/access?token=${oneTimeToken}`}
-          rotated={Boolean(sp.rotated)}
+          rotated={Boolean(sp.rotated_token)}
         />
       )}
 
