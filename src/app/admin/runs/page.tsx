@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, FlaskConical, PlayCircle } from "lucide-react";
+import { FlaskConical, PlayCircle } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -8,39 +8,31 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
-import { RunStatusBadge } from "@/components/run-status-badge";
 import { Poller } from "@/components/poller";
 import { RUN_POLL_INTERVAL_MS } from "@/lib/constants";
 import { FilterTabs } from "./filter-tabs";
+import { RunsTable, type RunRow } from "./table-view";
 
 type Filter =
   | "all"
   | "passed"
   | "failed"
-  | "hallucinations"
+  | "needs-review"
+  | "fixed"
   | "errors"
   | "active";
-
-function formatDuration(start: Date, end: Date | null) {
-  const ms = (end ?? new Date()).getTime() - start.getTime();
-  if (ms < 1000) return `${ms}ms`;
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  const rs = s % 60;
-  return `${m}m ${rs}s`;
-}
 
 function whereForFilter(filter: Filter) {
   switch (filter) {
     case "passed":
-      return { status: "done", verdict: "pass" };
+      return { clientVerdict: "pass" };
     case "failed":
-      return { status: "done", verdict: "fail" };
-    case "hallucinations":
-      return { hallucination: true };
+      return { clientVerdict: "fail" };
+    case "needs-review":
+      return { clientVerdict: "needs-review" };
+    case "fixed":
+      return { devFixedAt: { not: null } };
     case "errors":
       return { status: "error" };
     case "active":
@@ -50,17 +42,24 @@ function whereForFilter(filter: Filter) {
   }
 }
 
+function avg(nums: (number | null)[]) {
+  const ok = nums.filter((n): n is number => typeof n === "number");
+  if (ok.length === 0) return null;
+  return Math.round(ok.reduce((a, b) => a + b, 0) / ok.length);
+}
+
 export default async function RunsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; client?: string }>;
 }) {
   const sp = await searchParams;
   const allowed: Filter[] = [
     "all",
     "passed",
     "failed",
-    "hallucinations",
+    "needs-review",
+    "fixed",
     "errors",
     "active",
   ];
@@ -68,51 +67,115 @@ export default async function RunsPage({
     ? (sp.filter as Filter)
     : "all";
 
-  const [runs, counts] = await Promise.all([
+  const filterWhere = whereForFilter(filter);
+  const clientWhere = sp.client ? { clientId: sp.client } : {};
+  const where = { ...filterWhere, ...clientWhere };
+
+  const [runs, counts, clients] = await Promise.all([
     prisma.testRun.findMany({
-      where: whereForFilter(filter),
+      where,
       orderBy: { startedAt: "desc" },
       include: {
-        testCase: { select: { title: true, id: true } },
-        _count: { select: { messages: true } },
+        testCase: { select: { title: true } },
+        client: { select: { name: true, slug: true } },
+        botVersion: { select: { label: true } },
+        messages: { select: { responseTimeMs: true } },
       },
-      take: 100,
+      take: 200,
     }),
     Promise.all([
-      prisma.testRun.count(),
-      prisma.testRun.count({ where: { status: "done", verdict: "pass" } }),
-      prisma.testRun.count({ where: { status: "done", verdict: "fail" } }),
-      prisma.testRun.count({ where: { hallucination: true } }),
-      prisma.testRun.count({ where: { status: "error" } }),
+      prisma.testRun.count({ where: clientWhere }),
+      prisma.testRun.count({ where: { ...clientWhere, clientVerdict: "pass" } }),
+      prisma.testRun.count({ where: { ...clientWhere, clientVerdict: "fail" } }),
       prisma.testRun.count({
-        where: { status: { in: ["pending", "running"] } },
+        where: { ...clientWhere, clientVerdict: "needs-review" },
       }),
-    ]).then(([all, passed, failed, hallucinations, errors, active]) => ({
+      prisma.testRun.count({
+        where: { ...clientWhere, devFixedAt: { not: null } },
+      }),
+      prisma.testRun.count({ where: { ...clientWhere, status: "error" } }),
+      prisma.testRun.count({
+        where: { ...clientWhere, status: { in: ["pending", "running"] } },
+      }),
+    ]).then(([all, passed, failed, needsReview, fixed, errors, active]) => ({
       all,
       passed,
       failed,
-      hallucinations,
+      "needs-review": needsReview,
+      fixed,
       errors,
       active,
     })),
+    prisma.client.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
   const hasActive = counts.active > 0;
 
+  const rows: RunRow[] = runs.map((r) => ({
+    id: r.id,
+    status: r.status,
+    clientVerdict: r.clientVerdict,
+    devFixedAt: r.devFixedAt,
+    botVersionLabel: r.botVersion?.label ?? null,
+    testCaseTitle: r.testCase?.title ?? null,
+    clientName: r.client?.name ?? null,
+    clientSlug: r.client?.slug ?? null,
+    messageCount: r.messages.length,
+    avgResponseMs: avg(r.messages.map((m) => m.responseTimeMs)),
+    issueTags: r.issueTags,
+    source: r.source,
+    startedAt: r.startedAt,
+    finishedAt: r.finishedAt,
+  }));
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <Poller intervalMs={RUN_POLL_INTERVAL_MS} active={hasActive} />
 
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Test Runs</h1>
-        <p className="text-muted-foreground">
-          {counts.all === 0
-            ? "No runs yet."
-            : `${counts.all} total · ${hasActive ? "live updating" : "idle"}`}
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">Test Runs</h1>
+          <p className="text-muted-foreground">
+            {counts.all === 0
+              ? "No runs yet."
+              : `${counts.all} total · ${hasActive ? "live updating" : "idle"}`}
+          </p>
+        </div>
+        {counts.all > 0 && (
+          <div className="flex gap-2 text-sm">
+            <a
+              href={`/admin/export/runs.csv${sp.client ? `?clientId=${sp.client}` : ""}`}
+              className="text-primary hover:underline"
+              download
+            >
+              Export CSV
+            </a>
+            <span className="text-muted-foreground">·</span>
+            <a
+              href={`/admin/export/runs.json${sp.client ? `?clientId=${sp.client}` : ""}`}
+              className="text-primary hover:underline"
+              download
+            >
+              JSON
+            </a>
+          </div>
+        )}
       </header>
 
-      {counts.all > 0 && <FilterTabs counts={counts} />}
+      {counts.all > 0 && (
+        <div className="space-y-2">
+          <FilterTabs counts={counts} />
+          {clients.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs text-muted-foreground">Client:</span>
+              <ClientFilter clients={clients} active={sp.client ?? null} filter={filter} />
+            </div>
+          )}
+        </div>
+      )}
 
       {counts.all === 0 ? (
         <Card className="border-dashed">
@@ -121,9 +184,7 @@ export default async function RunsPage({
               <PlayCircle className="h-5 w-5 text-muted-foreground" />
             </div>
             <CardTitle className="text-base">No test runs yet</CardTitle>
-            <CardDescription>
-              Trigger a run from a test case.
-            </CardDescription>
+            <CardDescription>Trigger a run from a test case.</CardDescription>
             <div className="pt-4">
               <Link href="/admin/tests" className={buttonVariants()}>
                 <FlaskConical className="h-4 w-4" />
@@ -132,57 +193,54 @@ export default async function RunsPage({
             </div>
           </CardHeader>
         </Card>
-      ) : runs.length === 0 ? (
-        <Card className="border-dashed">
-          <CardHeader className="text-center py-10">
-            <CardTitle className="text-base">No runs match this filter</CardTitle>
-            <CardDescription>
-              Try a different category from the tabs above.
-            </CardDescription>
-          </CardHeader>
-        </Card>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <ul className="divide-y">
-              {runs.map((run) => (
-                <li key={run.id}>
-                  <Link
-                    href={`/admin/runs/${run.id}`}
-                    className="flex items-center gap-4 p-4 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <RunStatusBadge
-                          status={run.status}
-                          verdict={run.verdict}
-                        />
-                        {run.hallucination ? (
-                          <Badge
-                            variant="outline"
-                            className="text-xs border-amber-500/50 text-amber-700 dark:text-amber-400"
-                          >
-                            Hallucination
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <div className="font-medium text-sm truncate">
-                        {run.testCase?.title ?? "Live conversation"}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {run._count.messages} messages ·{" "}
-                        {formatDuration(run.startedAt, run.finishedAt)} ·{" "}
-                        {run.startedAt.toLocaleString()}
-                      </div>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <RunsTable rows={rows} />
       )}
     </div>
+  );
+}
+
+function ClientFilter({
+  clients,
+  active,
+  filter,
+}: {
+  clients: { id: string; name: string }[];
+  active: string | null;
+  filter: string;
+}) {
+  const base = filter === "all" ? "" : `filter=${filter}`;
+  return (
+    <>
+      <Link
+        href={`/admin/runs${base ? "?" + base : ""}`}
+        className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+          active === null
+            ? "bg-primary text-primary-foreground border-primary"
+            : "border-border text-muted-foreground hover:bg-muted"
+        }`}
+      >
+        All
+      </Link>
+      {clients.map((c) => {
+        const isActive = active === c.id;
+        const params = new URLSearchParams();
+        if (filter !== "all") params.set("filter", filter);
+        params.set("client", c.id);
+        return (
+          <Link
+            key={c.id}
+            href={`/admin/runs?${params.toString()}`}
+            className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+              isActive
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            {c.name}
+          </Link>
+        );
+      })}
+    </>
   );
 }

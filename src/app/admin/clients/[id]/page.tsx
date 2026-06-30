@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db";
 import { ClientEditForm } from "./client-edit-form";
 import { MagicLinkPanel } from "./magic-link-panel";
 import { DangerZone } from "./danger-zone";
+import { BotVersionsSection } from "./bot-versions/section";
 import { headers } from "next/headers";
 
 export default async function ClientDetailPage({
@@ -52,13 +53,30 @@ export default async function ClientDetailPage({
       </div>
 
       <header className="space-y-2">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {client.name}
-          </h1>
-          <Badge variant="secondary" className="font-mono">
-            /c/{client.slug}
-          </Badge>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {client.name}
+            </h1>
+            <Badge variant="secondary" className="font-mono">
+              /c/{client.slug}
+            </Badge>
+          </div>
+          <div className="flex gap-2 text-sm">
+            <Link
+              href={`/admin/clients/${client.id}/dashboard`}
+              className="text-primary hover:underline"
+            >
+              Dashboard
+            </Link>
+            <span className="text-muted-foreground">·</span>
+            <Link
+              href={`/admin/clients/${client.id}/analyses`}
+              className="text-primary hover:underline"
+            >
+              Analyses
+            </Link>
+          </div>
         </div>
         <p className="text-muted-foreground text-sm">
           {client._count.knowledge} knowledge · {client._count.testRuns} runs ·
@@ -91,6 +109,8 @@ export default async function ClientDetailPage({
           />
         </CardContent>
       </Card>
+
+      <BotVersionsSection clientId={client.id} />
 
       <DangerZone clientId={client.id} clientName={client.name} />
     </div>

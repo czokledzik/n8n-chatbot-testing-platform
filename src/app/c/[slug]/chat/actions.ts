@@ -8,9 +8,15 @@ import { callN8nWebhook } from "@/lib/n8n";
 
 export async function startLiveSession(slug: string): Promise<never> {
   const client = await requireClient(slug);
+  const activeVersion = await prisma.botVersion.findFirst({
+    where: { clientId: client.id, isActive: true },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
   const run = await prisma.testRun.create({
     data: {
       clientId: client.id,
+      botVersionId: activeVersion?.id ?? null,
       source: "live",
       status: "running",
     },
@@ -40,11 +46,17 @@ export async function sendLiveMessage(input: {
   });
 
   try {
-    const reply = await callN8nWebhook(trimmed, run.id, {
+    const result = await callN8nWebhook(trimmed, run.id, {
       clientId: client.id,
+      botVersionId: run.botVersionId,
     });
     await prisma.message.create({
-      data: { testRunId: run.id, role: "bot", content: reply },
+      data: {
+        testRunId: run.id,
+        role: "bot",
+        content: result.output,
+        responseTimeMs: result.responseTimeMs,
+      },
     });
   } catch (err) {
     await prisma.message.create({

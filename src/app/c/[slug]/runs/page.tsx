@@ -49,11 +49,22 @@ export default async function ClientRunsPage({
     <div className="space-y-8">
       <Poller intervalMs={RUN_POLL_INTERVAL_MS} active={hasActive} />
 
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Test Runs</h1>
-        <p className="text-muted-foreground">
-          Automated test executions and your live chat sessions.
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">Test Runs</h1>
+          <p className="text-muted-foreground">
+            Automated test executions and your live chat sessions.
+          </p>
+        </div>
+        {runs.length > 0 && (
+          <a
+            href={`/c/${slug}/export/runs.csv`}
+            className="text-sm text-primary hover:underline"
+            download
+          >
+            Export CSV
+          </a>
+        )}
       </header>
 
       {runs.length === 0 ? (

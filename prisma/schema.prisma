@@ -16,17 +16,34 @@ model Settings {
 }
 
 model Client {
-  id              String      @id @default(cuid())
+  id              String       @id @default(cuid())
   name            String
-  slug            String      @unique
+  slug            String       @unique
   accessTokenHash String
   n8nWebhookUrl   String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
   knowledge       Knowledge[]
   testRuns        TestRun[]
+  botVersions     BotVersion[]
+  analyses        AnalysisReport[]
 
   @@index([slug])
+}
+
+model BotVersion {
+  id            String    @id @default(cuid())
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  label         String
+  n8nWebhookUrl String
+  isActive      Boolean   @default(true)
+  notes         String?
+  createdAt     DateTime  @default(now())
+  testRuns      TestRun[]
+
+  @@unique([clientId, label])
+  @@index([clientId])
 }
 
 model Knowledge {
@@ -59,27 +76,46 @@ model TestRun {
   client        Client?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   testCaseId    String?
   testCase      TestCase? @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  botVersionId  String?
+  botVersion    BotVersion? @relation(fields: [botVersionId], references: [id], onDelete: SetNull)
+  sourceRunId   String?
+  sourceRun     TestRun?  @relation("ReRun", fields: [sourceRunId], references: [id], onDelete: SetNull)
+  reRuns        TestRun[] @relation("ReRun")
+
   source        String    @default("test")
   status        String    @default("pending")
   verdict       String?
   hallucination Boolean?
   judgeReason   String?
   notes         String?
+
+  clientVerdict       String?
+  clientVerifiedAt    DateTime?
+  devFixedAt          DateTime?
+  devFixNote          String?
+  issueTags           String[]  @default([])
+
+  improvementVerdict  String?
+  improvementReason   String?
+
   startedAt     DateTime  @default(now())
   finishedAt    DateTime?
   messages      Message[]
 
   @@index([clientId, startedAt])
   @@index([clientId, source])
+  @@index([clientId, botVersionId])
+  @@index([clientId, clientVerdict])
 }
 
 model Message {
-  id        String   @id @default(cuid())
-  testRunId String
-  testRun   TestRun  @relation(fields: [testRunId], references: [id], onDelete: Cascade)
-  role      String
-  content   String
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  testRunId       String
+  testRun         TestRun  @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  role            String
+  content         String
+  responseTimeMs  Int?
+  createdAt       DateTime @default(now())
 }
 
 model Comment {
@@ -92,4 +128,17 @@ model Comment {
   updatedAt   DateTime @updatedAt
 
   @@index([scope, targetId])
+}
+
+model AnalysisReport {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  scope       String
+  title       String
+  inputRunIds String[] @default([])
+  resultJson  String
+  createdAt   DateTime @default(now())
+
+  @@index([clientId, createdAt])
 }

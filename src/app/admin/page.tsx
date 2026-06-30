@@ -2,10 +2,11 @@ import Link from "next/link";
 import {
   ArrowRight,
   BookOpen,
-  CircleAlert,
   FlaskConical,
   PlayCircle,
   Target,
+  Users,
+  Wrench,
 } from "lucide-react";
 import {
   Card,
@@ -23,17 +24,19 @@ export default async function HomePage() {
     knowledgeCount,
     testCaseCount,
     testRunCount,
+    clientCount,
     passedCount,
     failedCount,
-    hallucinationCount,
+    fixedCount,
     settings,
   ] = await Promise.all([
     prisma.knowledge.count(),
     prisma.testCase.count(),
     prisma.testRun.count(),
-    prisma.testRun.count({ where: { status: "done", verdict: "pass" } }),
-    prisma.testRun.count({ where: { status: "done", verdict: "fail" } }),
-    prisma.testRun.count({ where: { hallucination: true } }),
+    prisma.client.count(),
+    prisma.testRun.count({ where: { clientVerdict: "pass" } }),
+    prisma.testRun.count({ where: { clientVerdict: "fail" } }),
+    prisma.testRun.count({ where: { devFixedAt: { not: null } } }),
     getSettings(),
   ]);
 
@@ -43,6 +46,13 @@ export default async function HomePage() {
     judgedCount === 0 ? null : Math.round((passedCount / judgedCount) * 100);
 
   const cards = [
+    {
+      label: "Clients",
+      count: clientCount,
+      href: "/admin/clients",
+      icon: Users,
+      hint: "Tenants with portal access",
+    },
     {
       label: "Knowledge",
       count: knowledgeCount,
@@ -71,7 +81,7 @@ export default async function HomePage() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
         <p className="text-muted-foreground">
-          Local platform for testing your n8n chatbot end-to-end.
+          Platform for testing n8n chatbots with client portal access.
         </p>
       </header>
 
@@ -80,8 +90,8 @@ export default async function HomePage() {
           <CardTitle className="text-base">Configuration</CardTitle>
           <CardDescription>
             {configured
-              ? "n8n webhook & OpenAI key are set. You're ready to seed knowledge."
-              : "Set your n8n webhook URL and OpenAI API key to get started."}
+              ? "Global defaults set. Each client can also have their own webhook URL via bot versions."
+              : "Set your global OpenAI API key (and optional fallback n8n URL)."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -97,7 +107,7 @@ export default async function HomePage() {
 
       <Separator />
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(({ label, count, href, icon: Icon, hint }) => (
           <Link key={href} href={href} className="group">
             <Card className="h-full transition-colors group-hover:border-primary/50">
@@ -123,7 +133,7 @@ export default async function HomePage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Pass rate
+                Pass rate (client-marked)
               </CardTitle>
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
@@ -133,7 +143,7 @@ export default async function HomePage() {
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {judgedCount === 0
-                  ? "No judged runs yet"
+                  ? "No client-marked runs yet"
                   : `${passedCount} pass · ${failedCount} fail`}
               </p>
             </CardContent>
@@ -141,16 +151,16 @@ export default async function HomePage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Hallucinations flagged
+                Runs marked fixed
               </CardTitle>
-              <CircleAlert className="h-4 w-4 text-muted-foreground" />
+              <Wrench className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-semibold tabular-nums">
-                {hallucinationCount}
+                {fixedCount}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Across all judged runs
+                Dev shipped changes for these runs
               </p>
             </CardContent>
           </Card>

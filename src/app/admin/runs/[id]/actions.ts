@@ -22,3 +22,40 @@ export async function deleteRun(runId: string): Promise<{ ok: boolean }> {
   revalidatePath("/admin");
   return { ok: true };
 }
+
+export async function setDevFixed(input: {
+  runId: string;
+  fixed: boolean;
+}): Promise<{ ok: boolean }> {
+  await prisma.testRun.update({
+    where: { id: input.runId },
+    data: { devFixedAt: input.fixed ? new Date() : null },
+  });
+  revalidatePath(`/admin/runs/${input.runId}`);
+  revalidatePath("/admin/runs");
+  return { ok: true };
+}
+
+export async function saveDevFixNote(input: {
+  runId: string;
+  note: string;
+}): Promise<{ ok: boolean }> {
+  await prisma.testRun.update({
+    where: { id: input.runId },
+    data: { devFixNote: input.note.trim() || null },
+  });
+  revalidatePath(`/admin/runs/${input.runId}`);
+  return { ok: true };
+}
+
+export async function bulkSetDevFixed(input: {
+  runIds: string[];
+  fixed: boolean;
+}): Promise<{ ok: boolean; count: number }> {
+  const result = await prisma.testRun.updateMany({
+    where: { id: { in: input.runIds } },
+    data: { devFixedAt: input.fixed ? new Date() : null },
+  });
+  revalidatePath("/admin/runs");
+  return { ok: true, count: result.count };
+}

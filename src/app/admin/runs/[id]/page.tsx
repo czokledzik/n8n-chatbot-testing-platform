@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Bot, Scale, User } from "lucide-react";
+import { ArrowLeft, Bot, User } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -14,9 +14,21 @@ import { RunStatusBadge } from "@/components/run-status-badge";
 import { Poller } from "@/components/poller";
 import { RUN_POLL_INTERVAL_MS } from "@/lib/constants";
 import { getComments } from "@/lib/comments";
+import {
+  ClientVerdictBadge,
+  IssueTagsDisplay,
+} from "@/components/issue-tags-display";
 import { CommentThread } from "./comment-thread";
 import { NotesTextarea } from "./notes-textarea";
-import { RejudgeButton } from "./rejudge-button";
+import { DevStatusCard } from "./dev-status-card";
+import { ReRunButton } from "./rerun-button";
+import { ImprovementCard } from "./improvement-card";
+
+function avg(nums: (number | null)[]) {
+  const ok = nums.filter((n): n is number => typeof n === "number");
+  if (ok.length === 0) return null;
+  return Math.round(ok.reduce((a, b) => a + b, 0) / ok.length);
+}
 
 export default async function RunDetailPage({
   params,
@@ -29,6 +41,13 @@ export default async function RunDetailPage({
     include: {
       testCase: { include: { knowledge: { select: { id: true, title: true } } } },
       messages: { orderBy: { createdAt: "asc" } },
+      botVersion: { select: { id: true, label: true } },
+      sourceRun: {
+        include: {
+          messages: { select: { responseTimeMs: true } },
+          botVersion: { select: { label: true } },
+        },
+      },
     },
   });
 
@@ -36,7 +55,7 @@ export default async function RunDetailPage({
 
   const isActive = run.status === "pending" || run.status === "running";
 
-  const [runComments, messageComments] = await Promise.all([
+  const [runComments, messageComments, versions] = await Promise.all([
     getComments("run", run.id),
     prisma.comment.findMany({
       where: {
@@ -45,6 +64,13 @@ export default async function RunDetailPage({
       },
       orderBy: { createdAt: "asc" },
     }),
+    run.clientId
+      ? prisma.botVersion.findMany({
+          where: { clientId: run.clientId },
+          orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
+          select: { id: true, label: true, isActive: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const commentsByMessage = new Map<string, typeof messageComments>();
@@ -53,7 +79,7 @@ export default async function RunDetailPage({
     commentsByMessage.get(c.targetId)!.push(c);
   }
 
-  const canJudge = run.status === "done" && run.messages.length > 0;
+  const avgResponse = avg(run.messages.map((m) => m.responseTimeMs));
 
   return (
     <div className="space-y-6">
@@ -71,21 +97,26 @@ export default async function RunDetailPage({
 
       <header className="space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <RunStatusBadge status={run.status} verdict={run.verdict} />
-          {run.hallucination ? (
-            <Badge
-              variant="outline"
-              className="border-amber-500/50 text-amber-700 dark:text-amber-400"
-            >
-              Hallucination
+          <RunStatusBadge status={run.status} verdict={null} />
+          <ClientVerdictBadge verdict={run.clientVerdict} />
+          {run.botVersion && (
+            <Badge variant="secondary" className="font-mono text-xs">
+              {run.botVersion.label}
             </Badge>
-          ) : null}
+          )}
+          {run.source === "live" && <Badge variant="outline">Live chat</Badge>}
+          <IssueTagsDisplay tags={run.issueTags} />
           <span className="text-xs text-muted-foreground">
             Started {run.startedAt.toLocaleString()}
           </span>
           {run.finishedAt && (
             <span className="text-xs text-muted-foreground">
               · Finished {run.finishedAt.toLocaleString()}
+            </span>
+          )}
+          {avgResponse !== null && (
+            <span className="text-xs text-muted-foreground">
+              · {(avgResponse / 1000).toFixed(1)}s avg
             </span>
           )}
         </div>
@@ -106,25 +137,50 @@ export default async function RunDetailPage({
               </p>
             )}
           </div>
-          {canJudge && run.testCase && <RejudgeButton runId={run.id} />}
+          <div className="flex items-start gap-3 flex-wrap">
+            {run.testCase && run.source === "test" && (
+              <ReRunButton
+                sourceRunId={run.id}
+                versions={versions}
+                currentVersionId={run.botVersionId}
+              />
+            )}
+            <a
+              href={`/admin/runs/${run.id}/export.md`}
+              className="text-sm text-primary hover:underline self-center"
+              download
+            >
+              Export .md
+            </a>
+          </div>
         </div>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6 min-w-0">
-          {run.verdict && run.judgeReason && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Scale className="h-4 w-4" />
-                  Judge verdict
-                </CardTitle>
-                <CardDescription>{run.judgeReason}</CardDescription>
-              </CardHeader>
-            </Card>
+          {run.sourceRun && (
+            <ImprovementCard
+              runId={run.id}
+              source={{
+                id: run.sourceRun.id,
+                botVersionLabel: run.sourceRun.botVersion?.label ?? null,
+                clientVerdict: run.sourceRun.clientVerdict,
+                messageCount: run.sourceRun.messages.length,
+                avgResponseMs: avg(
+                  run.sourceRun.messages.map((m) => m.responseTimeMs),
+                ),
+              }}
+              current={{
+                messageCount: run.messages.length,
+                avgResponseMs: avgResponse,
+              }}
+              improvementVerdict={run.improvementVerdict}
+              improvementReason={run.improvementReason}
+              canCheck={run.status === "done" && run.sourceRun.status === "done"}
+            />
           )}
 
-          {run.status === "error" && run.judgeReason && !run.verdict && (
+          {run.status === "error" && run.judgeReason && (
             <Card className="border-destructive/40 bg-destructive/5">
               <CardHeader>
                 <CardTitle className="text-sm text-destructive">
@@ -187,7 +243,14 @@ export default async function RunDetailPage({
                             >
                               {msg.content}
                             </div>
-                            <div className={`w-full max-w-md ${isUser ? "items-end" : "items-start"} flex flex-col`}>
+                            {!isUser && msg.responseTimeMs !== null && (
+                              <div className="text-[10px] text-muted-foreground mt-1 pl-1">
+                                {(msg.responseTimeMs / 1000).toFixed(2)}s
+                              </div>
+                            )}
+                            <div
+                              className={`w-full max-w-md ${isUser ? "items-end" : "items-start"} flex flex-col`}
+                            >
                               <CommentThread
                                 scope="message"
                                 targetId={msg.id}
@@ -249,6 +312,14 @@ export default async function RunDetailPage({
             </Card>
           )}
 
+          <DevStatusCard
+            runId={run.id}
+            initial={{
+              devFixedAt: run.devFixedAt,
+              devFixNote: run.devFixNote ?? "",
+            }}
+          />
+
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Notes</CardTitle>
@@ -261,7 +332,7 @@ export default async function RunDetailPage({
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Run notes</CardTitle>
+              <CardTitle className="text-sm">Run comments</CardTitle>
               <CardDescription>Threaded comments on the run.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -272,7 +343,7 @@ export default async function RunDetailPage({
                 comments={runComments.map((c) => ({
                   id: c.id,
                   content: c.content,
-                                  authorScope: c.authorScope,
+                  authorScope: c.authorScope,
                   createdAt: c.createdAt,
                 }))}
               />

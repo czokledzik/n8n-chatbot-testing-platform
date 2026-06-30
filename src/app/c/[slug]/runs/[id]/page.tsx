@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Bot, Scale, User } from "lucide-react";
+import { ArrowLeft, Bot, User } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -13,10 +13,15 @@ import { prisma } from "@/lib/db";
 import { requireClient } from "@/lib/auth";
 import { RunStatusBadge } from "@/components/run-status-badge";
 import { Poller } from "@/components/poller";
-import { RUN_POLL_INTERVAL_MS } from "@/lib/constants";
+import { RUN_POLL_INTERVAL_MS, type ClientVerdict } from "@/lib/constants";
 import { getComments } from "@/lib/comments";
+import {
+  ClientVerdictBadge,
+  IssueTagsDisplay,
+} from "@/components/issue-tags-display";
 import { ClientCommentThread } from "./client-comment-thread";
 import { LiveChatBox } from "./live-chat-box";
+import { ClientReviewCard } from "./client-review-card";
 
 export default async function ClientRunDetail({
   params,
@@ -33,6 +38,7 @@ export default async function ClientRunDetail({
         include: { knowledge: { select: { id: true, title: true } } },
       },
       messages: { orderBy: { createdAt: "asc" } },
+      botVersion: { select: { label: true } },
     },
   });
   if (!run) notFound();
@@ -73,16 +79,15 @@ export default async function ClientRunDetail({
 
       <header className="space-y-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <RunStatusBadge status={run.status} verdict={run.verdict} />
-          {isLive && <Badge variant="outline">Live chat</Badge>}
-          {run.hallucination && (
-            <Badge
-              variant="outline"
-              className="border-amber-500/50 text-amber-700 dark:text-amber-400"
-            >
-              Hallucination
+          <RunStatusBadge status={run.status} verdict={null} />
+          <ClientVerdictBadge verdict={run.clientVerdict} />
+          {run.botVersion && (
+            <Badge variant="secondary" className="font-mono text-xs">
+              {run.botVersion.label}
             </Badge>
           )}
+          {isLive && <Badge variant="outline">Live chat</Badge>}
+          <IssueTagsDisplay tags={run.issueTags} />
           <span className="text-xs text-muted-foreground">
             Started {run.startedAt.toLocaleString()}
           </span>
@@ -110,19 +115,7 @@ export default async function ClientRunDetail({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6 min-w-0">
-          {run.verdict && run.judgeReason && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Scale className="h-4 w-4" />
-                  Judge verdict
-                </CardTitle>
-                <CardDescription>{run.judgeReason}</CardDescription>
-              </CardHeader>
-            </Card>
-          )}
-
-          {run.status === "error" && run.judgeReason && !run.verdict && (
+          {run.status === "error" && run.judgeReason && (
             <Card className="border-destructive/40 bg-destructive/5">
               <CardHeader>
                 <CardTitle className="text-sm text-destructive">
@@ -187,6 +180,11 @@ export default async function ClientRunDetail({
                             >
                               {msg.content}
                             </div>
+                            {!isUser && msg.responseTimeMs !== null && (
+                              <div className="text-[10px] text-muted-foreground mt-1 pl-1">
+                                {(msg.responseTimeMs / 1000).toFixed(2)}s
+                              </div>
+                            )}
                             <div className="w-full max-w-md">
                               <ClientCommentThread
                                 slug={slug}
@@ -221,6 +219,16 @@ export default async function ClientRunDetail({
         </div>
 
         <aside className="space-y-6">
+          <ClientReviewCard
+            slug={slug}
+            runId={run.id}
+            initial={{
+              clientVerdict: (run.clientVerdict as ClientVerdict | null) ?? null,
+              clientVerifiedAt: run.clientVerifiedAt,
+              issueTags: run.issueTags ?? [],
+            }}
+          />
+
           {run.testCase && (
             <Card>
               <CardHeader>

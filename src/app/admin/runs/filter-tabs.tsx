@@ -8,7 +8,8 @@ const TABS = [
   { value: "all", label: "All" },
   { value: "passed", label: "Passed" },
   { value: "failed", label: "Failed" },
-  { value: "hallucinations", label: "Hallucinations" },
+  { value: "needs-review", label: "Needs review" },
+  { value: "fixed", label: "Fixed" },
   { value: "errors", label: "Errors" },
   { value: "active", label: "Active" },
 ] as const;
@@ -21,13 +22,16 @@ export function FilterTabs({
   const pathname = usePathname();
   const params = useSearchParams();
   const current = params.get("filter") ?? "all";
+  const clientId = params.get("client");
 
   return (
     <div className="flex flex-wrap gap-1.5">
       {TABS.map((tab) => {
         const active = current === tab.value;
-        const href =
-          tab.value === "all" ? pathname : `${pathname}?filter=${tab.value}`;
+        const sp = new URLSearchParams();
+        if (tab.value !== "all") sp.set("filter", tab.value);
+        if (clientId) sp.set("client", clientId);
+        const href = sp.toString() ? `${pathname}?${sp.toString()}` : pathname;
         return (
           <Link
             key={tab.value}
