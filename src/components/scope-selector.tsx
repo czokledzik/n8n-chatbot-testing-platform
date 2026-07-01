@@ -57,7 +57,7 @@ export function ScopeSelector({
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 mt-1.5 rounded-lg glass-panel-strong p-1 z-50 max-h-72 overflow-y-auto">
+        <div className="absolute left-0 right-0 mt-1.5 rounded-lg bg-popover text-popover-foreground border border-border shadow-lg p-1 z-[100] max-h-72 overflow-y-auto">
           <button
             type="button"
             onClick={() => select(null)}

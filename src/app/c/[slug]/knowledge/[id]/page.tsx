@@ -11,6 +11,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
 import { requireClient } from "@/lib/auth";
+import { versionStatusForTestCases } from "@/lib/version-entries";
+import { VersionStatusPills } from "@/components/version-status-pills";
 
 export default async function ClientKnowledgeDetail({
   params,
@@ -30,6 +32,11 @@ export default async function ClientKnowledgeDetail({
     },
   });
   if (!knowledge) notFound();
+
+  const versionStatusByTc = await versionStatusForTestCases({
+    clientId: client.id,
+    testCaseIds: knowledge.testCases.map((tc) => tc.id),
+  });
 
   return (
     <div className="space-y-8">
@@ -87,11 +94,17 @@ export default async function ClientKnowledgeDetail({
                     href={`/c/${slug}/knowledge/${knowledge.id}/tests/${tc.id}`}
                     className="block -mx-4 px-4 py-1 hover:bg-muted/40 rounded-md transition-colors"
                   >
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h3 className="font-medium text-sm">{tc.title}</h3>
                       <Badge variant="secondary" className="text-xs">
                         {tc._count.runs} run{tc._count.runs === 1 ? "" : "s"}
                       </Badge>
+                    </div>
+                    <div className="mb-1">
+                      <VersionStatusPills
+                        versions={versionStatusByTc[tc.id] ?? []}
+                        runHrefBase={`/c/${slug}/runs`}
+                      />
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-1">
                       <span className="font-medium text-foreground/70">

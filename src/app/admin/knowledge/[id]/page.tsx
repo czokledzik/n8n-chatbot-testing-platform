@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
+import { versionStatusForTestCases } from "@/lib/version-entries";
+import { VersionStatusPills } from "@/components/version-status-pills";
 import { GenerateButton } from "./generate-button";
 import { DeleteKnowledgeButton } from "./delete-button";
 
@@ -30,6 +32,13 @@ export default async function KnowledgeDetailPage({
   });
 
   if (!knowledge) notFound();
+
+  const versionStatusByTc = knowledge.clientId
+    ? await versionStatusForTestCases({
+        clientId: knowledge.clientId,
+        testCaseIds: knowledge.testCases.map((tc) => tc.id),
+      })
+    : {};
 
   return (
     <div className="space-y-8">
@@ -90,13 +99,17 @@ export default async function KnowledgeDetailPage({
               {knowledge.testCases.map((tc) => (
                 <li key={tc.id} className="py-4 first:pt-0 last:pb-0">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-medium text-sm">{tc.title}</h3>
                         <Badge variant="secondary" className="text-xs">
                           {tc._count.runs} runs
                         </Badge>
                       </div>
+                      <VersionStatusPills
+                        versions={versionStatusByTc[tc.id] ?? []}
+                        runHrefBase="/admin/runs"
+                      />
                       <p className="text-xs text-muted-foreground line-clamp-1">
                         <span className="font-medium text-foreground/70">
                           Persona:

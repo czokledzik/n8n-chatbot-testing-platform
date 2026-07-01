@@ -11,6 +11,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
 import { getScopedClientId } from "@/lib/admin-scope";
+import { versionStatusForTestCases } from "@/lib/version-entries";
+import { VersionStatusPills } from "@/components/version-status-pills";
 import { RunButton } from "./run-button";
 import { RunAllButton } from "./run-all-button";
 
@@ -20,12 +22,33 @@ export default async function TestsPage() {
     where: scopedClientId ? { clientId: scopedClientId } : {},
     orderBy: { createdAt: "desc" },
     include: {
+      client: { select: { id: true, name: true } },
       testCases: {
         orderBy: { createdAt: "desc" },
         include: { _count: { select: { runs: true } } },
       },
     },
   });
+
+  // Batch version status per client
+  const byClient = new Map<string, string[]>();
+  for (const k of knowledgeWithCases) {
+    if (!k.clientId) continue;
+    const arr = byClient.get(k.clientId) ?? [];
+    for (const tc of k.testCases) arr.push(tc.id);
+    byClient.set(k.clientId, arr);
+  }
+
+  const versionStatusByTc: Record<
+    string,
+    Awaited<ReturnType<typeof versionStatusForTestCases>>[string]
+  > = {};
+  await Promise.all(
+    [...byClient.entries()].map(async ([clientId, tcIds]) => {
+      const res = await versionStatusForTestCases({ clientId, testCaseIds: tcIds });
+      Object.assign(versionStatusByTc, res);
+    }),
+  );
 
   const totalCases = knowledgeWithCases.reduce(
     (acc, k) => acc + k.testCases.length,
@@ -81,6 +104,12 @@ export default async function TestsPage() {
                       <CardDescription>
                         {k.testCases.length} test case
                         {k.testCases.length === 1 ? "" : "s"}
+                        {k.client && !scopedClientId && (
+                          <span className="text-muted-foreground">
+                            {" · "}
+                            {k.client.name}
+                          </span>
+                        )}
                       </CardDescription>
                     </div>
                     <RunAllButton
@@ -96,8 +125,8 @@ export default async function TestsPage() {
                         key={tc.id}
                         className="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-4"
                       >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-medium text-sm truncate">
                               {tc.title}
                             </h3>
@@ -105,6 +134,10 @@ export default async function TestsPage() {
                               {tc._count.runs} runs
                             </Badge>
                           </div>
+                          <VersionStatusPills
+                            versions={versionStatusByTc[tc.id] ?? []}
+                            runHrefBase="/admin/runs"
+                          />
                           <p className="text-xs text-muted-foreground line-clamp-1">
                             <span className="font-medium text-foreground/70">
                               Goal:
