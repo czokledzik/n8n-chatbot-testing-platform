@@ -214,7 +214,7 @@ export default async function RunDetailPage({
                     : "No messages recorded."}
                 </p>
               ) : (
-                <ul className="space-y-5">
+                <ul className="space-y-5 chat-canvas p-4">
                   {run.messages.map((msg) => {
                     const isUser = msg.role === "user";
                     const msgComments = commentsByMessage.get(msg.id) ?? [];
@@ -224,10 +224,10 @@ export default async function RunDetailPage({
                           className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}
                         >
                           <div
-                            className={`shrink-0 h-8 w-8 rounded-full grid place-items-center ${
+                            className={`shrink-0 h-8 w-8 rounded-full grid place-items-center backdrop-blur-sm ${
                               isUser
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted text-muted-foreground"
+                                ? "chat-bubble-user"
+                                : "chat-bubble-bot text-muted-foreground"
                             }`}
                           >
                             {isUser ? (
@@ -242,8 +242,8 @@ export default async function RunDetailPage({
                             <div
                               className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap ${
                                 isUser
-                                  ? "bg-primary text-primary-foreground rounded-tr-sm"
-                                  : "bg-muted text-foreground rounded-tl-sm"
+                                  ? "chat-bubble-user rounded-tr-sm"
+                                  : "chat-bubble-bot rounded-tl-sm"
                               }`}
                             >
                               {msg.content}

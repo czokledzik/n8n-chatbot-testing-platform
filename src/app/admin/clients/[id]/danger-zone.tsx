@@ -34,18 +34,20 @@ export function DangerZone({
   }
 
   return (
-    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 flex items-center justify-between gap-4">
+    <div className="chunky-surface rounded-2xl border-destructive bg-destructive/5 p-4 flex items-center justify-between gap-4 [--chunky-border:var(--destructive)] [--chunky-shadow:var(--destructive)]">
       <div>
-        <div className="font-medium text-sm text-destructive">Delete client</div>
+        <div className="font-display font-semibold text-sm text-destructive">
+          Delete client
+        </div>
         <p className="text-xs text-destructive/80">
           Permanent. Cascades to knowledge, test cases and runs.
         </p>
       </div>
       <Button
-        variant="ghost"
-        className="text-destructive hover:text-destructive"
+        variant="chunky"
         onClick={handleDelete}
         disabled={pending}
+        className="!bg-destructive !text-white [--chunky-border:var(--destructive)] [--chunky-shadow:oklch(0.35_0.19_27)]"
       >
         {pending ? (
           <Loader2 className="h-4 w-4 animate-spin" />

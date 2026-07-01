@@ -12,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
   { href: "/admin", label: "Overview", icon: Home, exact: true },
@@ -26,13 +27,15 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-60 shrink-0 border-r bg-sidebar text-sidebar-foreground flex flex-col">
-      <div className="px-5 py-5 border-b flex items-center gap-2.5">
-        <div className="h-8 w-8 rounded-md bg-primary text-primary-foreground grid place-items-center">
+    <aside className="w-60 shrink-0 flex flex-col glass-panel !rounded-none !border-t-0 !border-b-0 !border-l-0 sticky top-0 h-screen">
+      <div className="px-5 py-5 flex items-center gap-2.5 border-b border-sidebar-border/50">
+        <div className="h-9 w-9 rounded-xl bg-primary text-primary-foreground grid place-items-center shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_4px_12px_-4px_oklch(0.65_0.19_40/0.5)]">
           <Bot className="h-4 w-4" />
         </div>
         <div className="leading-tight">
-          <div className="text-sm font-semibold">Chatbot Testing</div>
+          <div className="text-sm font-display font-semibold">
+            Chatbot Testing
+          </div>
           <div className="text-xs text-muted-foreground">Admin</div>
         </div>
       </div>
@@ -46,10 +49,10 @@ export function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all",
                 active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.4)]"
+                  : "text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
               )}
             >
               <Icon className="h-4 w-4" />
@@ -58,8 +61,9 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="px-5 py-4 border-t text-xs text-muted-foreground">
-        v1
+      <div className="px-5 py-4 border-t border-sidebar-border/50 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">v1</span>
+        <ThemeToggle />
       </div>
     </aside>
   );

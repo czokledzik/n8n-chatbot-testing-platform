@@ -10,7 +10,10 @@ export function RunStatusBadge({
 }) {
   if (status === "running") {
     return (
-      <Badge variant="secondary" className="gap-1">
+      <Badge
+        variant="outline"
+        className="gap-1 backdrop-blur-sm bg-primary/10 text-primary border-primary/30"
+      >
         <Loader2 className="h-3 w-3 animate-spin" />
         Running
       </Badge>
@@ -18,7 +21,10 @@ export function RunStatusBadge({
   }
   if (status === "pending") {
     return (
-      <Badge variant="secondary" className="gap-1">
+      <Badge
+        variant="outline"
+        className="gap-1 backdrop-blur-sm bg-muted/60 border-border/60"
+      >
         <Clock className="h-3 w-3" />
         Pending
       </Badge>
@@ -26,7 +32,7 @@ export function RunStatusBadge({
   }
   if (status === "error") {
     return (
-      <Badge variant="destructive" className="gap-1">
+      <Badge variant="outline" className="gap-1 verdict-fail backdrop-blur-sm">
         <CircleAlert className="h-3 w-3" />
         Error
       </Badge>
@@ -35,7 +41,7 @@ export function RunStatusBadge({
   if (status === "done") {
     if (verdict === "pass") {
       return (
-        <Badge className="gap-1 bg-green-600 text-white hover:bg-green-700">
+        <Badge variant="outline" className="gap-1 verdict-pass backdrop-blur-sm">
           <CheckCircle2 className="h-3 w-3" />
           Pass
         </Badge>
@@ -43,18 +49,28 @@ export function RunStatusBadge({
     }
     if (verdict === "fail") {
       return (
-        <Badge variant="destructive" className="gap-1">
+        <Badge variant="outline" className="gap-1 verdict-fail backdrop-blur-sm">
           <CircleAlert className="h-3 w-3" />
           Fail
         </Badge>
       );
     }
     return (
-      <Badge variant="secondary" className="gap-1">
+      <Badge
+        variant="outline"
+        className="gap-1 backdrop-blur-sm bg-muted/50 border-border/60"
+      >
         <CheckCircle2 className="h-3 w-3" />
         Done
       </Badge>
     );
   }
-  return <Badge variant="secondary">{status}</Badge>;
+  return (
+    <Badge
+      variant="outline"
+      className="backdrop-blur-sm bg-muted/50 border-border/60"
+    >
+      {status}
+    </Badge>
+  );
 }

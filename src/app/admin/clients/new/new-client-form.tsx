@@ -108,7 +108,7 @@ export function NewClientForm() {
         >
           Cancel
         </Link>
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" variant="chunky" disabled={pending}>
           {pending && <Loader2 className="h-4 w-4 animate-spin" />}
           Create client
         </Button>

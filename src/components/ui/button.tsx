@@ -8,9 +8,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        default:
+          "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_1px_2px_rgba(0,0,0,0.15)] hover:brightness-105 aria-expanded:brightness-95",
         outline:
-          "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border-border bg-background/60 backdrop-blur-md hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
@@ -18,6 +19,10 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        chunky:
+          "chunky-surface font-display font-semibold bg-primary text-primary-foreground active:translate-y-0 active:translate-x-0 !border-[var(--chunky-border)]",
+        glass:
+          "glass-button font-medium rounded-xl",
       },
       size: {
         default:
@@ -33,6 +38,23 @@ const buttonVariants = cva(
         "icon-lg": "size-9",
       },
     },
+    compoundVariants: [
+      {
+        variant: "chunky",
+        size: "default",
+        className: "h-10 px-4 text-sm gap-2",
+      },
+      {
+        variant: "chunky",
+        size: "lg",
+        className: "h-12 px-5 text-base gap-2",
+      },
+      {
+        variant: "chunky",
+        size: "sm",
+        className: "h-9 px-3.5 text-sm gap-1.5",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",

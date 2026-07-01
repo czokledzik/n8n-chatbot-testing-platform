@@ -147,7 +147,7 @@ export function SettingsForm({ initial }: SettingsFormProps) {
       </div>
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" variant="chunky" disabled={pending}>
           {pending && <Loader2 className="h-4 w-4 animate-spin" />}
           Save settings
         </Button>

@@ -33,23 +33,26 @@ export function MagicLinkPanel({
   }
 
   return (
-    <Card className="border-amber-500/40 bg-amber-500/5">
+    <Card
+      variant="chunky"
+      className="!border-amber-500 bg-amber-500/10 [--chunky-shadow:oklch(0.65_0.16_60)]"
+    >
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
+        <CardTitle className="text-base flex items-center gap-2 font-display">
           <KeyRound className="h-4 w-4" />
           {rotated ? "New magic link" : "Magic link generated"}
         </CardTitle>
-        <CardDescription className="text-amber-700 dark:text-amber-400">
+        <CardDescription className="text-amber-800 dark:text-amber-300">
           Copy this link now — it won&apos;t be shown again. Anyone with it can
           read this client&apos;s results.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-2">
-          <code className="flex-1 truncate rounded-md border bg-background px-3 py-2 text-xs font-mono">
+          <code className="flex-1 truncate rounded-md border bg-background/70 backdrop-blur-sm px-3 py-2 text-xs font-mono">
             {link}
           </code>
-          <Button size="sm" variant="outline" onClick={handleCopy}>
+          <Button size="sm" variant="chunky" onClick={handleCopy}>
             {copied ? (
               <Check className="h-4 w-4" />
             ) : (
