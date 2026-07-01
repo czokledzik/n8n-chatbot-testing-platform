@@ -9,16 +9,3 @@ export async function getComments(scope: CommentScope, targetId: string) {
     orderBy: { createdAt: "asc" },
   });
 }
-
-export async function getCommentCounts(
-  scope: CommentScope,
-  targetIds: string[],
-): Promise<Record<string, number>> {
-  if (targetIds.length === 0) return {};
-  const rows = await prisma.comment.groupBy({
-    by: ["targetId"],
-    where: { scope, targetId: { in: targetIds } },
-    _count: { _all: true },
-  });
-  return Object.fromEntries(rows.map((r) => [r.targetId, r._count._all]));
-}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -59,17 +59,18 @@ export function RunsTable({
   rows: RunRow[];
   groupBy?: "none" | "document";
 }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [rawSelected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
 
-  useEffect(() => {
-    const ids = new Set(rows.map((r) => r.id));
-    setSelected((prev) => {
-      const filtered = [...prev].filter((id) => ids.has(id));
-      if (filtered.length === prev.size) return prev;
-      return new Set(filtered);
-    });
-  }, [rows]);
+  // Rows change under us on every poll refresh. Instead of pruning state in
+  // an effect, derive the effective selection from what is still visible.
+  const rowIds = useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
+  const selected = useMemo(() => {
+    const filtered = [...rawSelected].filter((id) => rowIds.has(id));
+    return filtered.length === rawSelected.size
+      ? rawSelected
+      : new Set(filtered);
+  }, [rawSelected, rowIds]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -81,8 +82,10 @@ export function RunsTable({
   }
 
   function toggleAll() {
-    setSelected((prev) =>
-      prev.size === rows.length ? new Set() : new Set(rows.map((r) => r.id)),
+    setSelected(
+      selected.size === rows.length
+        ? new Set()
+        : new Set(rows.map((r) => r.id)),
     );
   }
 

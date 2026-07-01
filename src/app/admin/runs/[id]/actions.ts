@@ -3,19 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { judgeRun } from "@/lib/judge";
-
-export async function rejudge(runId: string): Promise<{ ok: boolean; error?: string }> {
-  try {
-    await judgeRun(runId);
-    revalidatePath(`/admin/runs/${runId}`);
-    revalidatePath("/admin/runs");
-    revalidatePath("/admin");
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: (err as Error).message };
-  }
-}
 
 export async function deleteRunAndRedirect(runId: string): Promise<never> {
   await prisma.testRun.delete({ where: { id: runId } });
@@ -47,16 +34,4 @@ export async function saveDevFixNote(input: {
   });
   revalidatePath(`/admin/runs/${input.runId}`);
   return { ok: true };
-}
-
-export async function bulkSetDevFixed(input: {
-  runIds: string[];
-  fixed: boolean;
-}): Promise<{ ok: boolean; count: number }> {
-  const result = await prisma.testRun.updateMany({
-    where: { id: { in: input.runIds } },
-    data: { devFixedAt: input.fixed ? new Date() : null },
-  });
-  revalidatePath("/admin/runs");
-  return { ok: true, count: result.count };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -28,23 +28,24 @@ const LANGUAGES: { value: Language; label: string; hint: string }[] = [
 
 export function SettingsForm({ initial }: SettingsFormProps) {
   const hasStoredKey = Boolean(initial.openaiApiKey);
-  const [state, formAction, pending] = useActionState(
-    saveSettings,
-    initialState,
-  );
   const [keyInput, setKeyInput] = useState("");
   const [reveal, setReveal] = useState(false);
   const [language, setLanguage] = useState<Language>(initial.language);
 
-  useEffect(() => {
-    if (state.ok) {
-      toast.success("Settings saved");
-      setKeyInput("");
-      setReveal(false);
-    } else if (state.error) {
-      toast.error(state.error);
-    }
-  }, [state]);
+  const [state, formAction, pending] = useActionState(
+    async (prev: SettingsActionState, formData: FormData) => {
+      const result = await saveSettings(prev, formData);
+      if (result.ok) {
+        toast.success("Settings saved");
+        setKeyInput("");
+        setReveal(false);
+      } else if (result.error) {
+        toast.error(result.error);
+      }
+      return result;
+    },
+    initialState,
+  );
 
   const keyValueToSubmit =
     hasStoredKey && keyInput === "" ? PLACEHOLDER : keyInput;

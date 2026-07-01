@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,17 +16,19 @@ const initial: CreateBotVersionState = { ok: false };
 
 export function NewVersionForm({ clientId }: { clientId: string }) {
   const [open, setOpen] = useState(false);
-  const bound = createBotVersion.bind(null, clientId);
-  const [state, action, pending] = useActionState(bound, initial);
-
-  useEffect(() => {
-    if (state.ok) {
-      toast.success("Bot version created");
-      setOpen(false);
-    } else if (state.error) {
-      toast.error(state.error);
-    }
-  }, [state]);
+  const [state, action, pending] = useActionState(
+    async (prev: CreateBotVersionState, formData: FormData) => {
+      const result = await createBotVersion(clientId, prev, formData);
+      if (result.ok) {
+        toast.success("Bot version created");
+        setOpen(false);
+      } else if (result.error) {
+        toast.error(result.error);
+      }
+      return result;
+    },
+    initial,
+  );
 
   if (!open) {
     return (

@@ -1,8 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const ADMIN_USER = process.env.ADMIN_USER ?? "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "admin";
-
 function unauthorized() {
   return new NextResponse("Authentication required", {
     status: 401,
@@ -12,7 +9,31 @@ function unauthorized() {
   });
 }
 
-export function proxy(req: NextRequest) {
+// Constant-time string comparison. Hashing both sides first avoids
+// leaking length information through timingSafeEqual's length check.
+async function safeEqual(a: string, b: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const [hashA, hashB] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(a)),
+    crypto.subtle.digest("SHA-256", encoder.encode(b)),
+  ]);
+  const viewA = new Uint8Array(hashA);
+  const viewB = new Uint8Array(hashB);
+  let diff = 0;
+  for (let i = 0; i < viewA.length; i++) diff |= viewA[i] ^ viewB[i];
+  return diff === 0;
+}
+
+export async function proxy(req: NextRequest) {
+  const adminUser = process.env.ADMIN_USER;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  // Fail closed: no credentials configured means no access at all.
+  if (!adminUser || !adminPassword) {
+    console.error("ADMIN_USER / ADMIN_PASSWORD not set - admin access disabled");
+    return unauthorized();
+  }
+
   const auth = req.headers.get("authorization");
   if (!auth?.startsWith("Basic ")) {
     return unauthorized();
@@ -25,7 +46,11 @@ export function proxy(req: NextRequest) {
   const user = decoded.slice(0, sep);
   const pass = decoded.slice(sep + 1);
 
-  if (user !== ADMIN_USER || pass !== ADMIN_PASSWORD) {
+  const [userOk, passOk] = await Promise.all([
+    safeEqual(user, adminUser),
+    safeEqual(pass, adminPassword),
+  ]);
+  if (!userOk || !passOk) {
     return unauthorized();
   }
 
