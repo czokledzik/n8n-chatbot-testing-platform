@@ -11,6 +11,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { prisma } from "@/lib/db";
 import { Poller } from "@/components/poller";
 import { RUN_POLL_INTERVAL_MS } from "@/lib/constants";
+import { getScopedClientId } from "@/lib/admin-scope";
 import { FilterTabs } from "./filter-tabs";
 import { RunsTable, type RunRow } from "./table-view";
 
@@ -82,8 +83,9 @@ export default async function RunsPage({
     : "all";
   const groupBy = sp.group === "document" ? "document" : "none";
 
+  const scopedClientId = await getScopedClientId({ client: sp.client });
   const filterWhere = whereForFilter(filter);
-  const clientWhere = sp.client ? { clientId: sp.client } : {};
+  const clientWhere = scopedClientId ? { clientId: scopedClientId } : {};
   const knowledgeWhere = sp.knowledge
     ? { testCase: { knowledgeId: sp.knowledge } }
     : {};
@@ -153,7 +155,7 @@ export default async function RunsPage({
       select: { id: true, name: true },
     }),
     prisma.knowledge.findMany({
-      where: sp.client ? { clientId: sp.client } : {},
+      where: scopedClientId ? { clientId: scopedClientId } : {},
       orderBy: { title: "asc" },
       select: { id: true, title: true },
     }),
@@ -180,7 +182,7 @@ export default async function RunsPage({
     finishedAt: r.finishedAt,
   }));
 
-  const exportQuery = buildQuery({ clientId: sp.client });
+  const exportQuery = buildQuery({ clientId: scopedClientId });
 
   return (
     <div className="space-y-6">
@@ -221,13 +223,13 @@ export default async function RunsPage({
       {counts.all > 0 && (
         <div className="space-y-2">
           <FilterTabs counts={counts} />
-          {clients.length > 0 && (
+          {!scopedClientId && clients.length > 0 && (
             <div className="flex flex-wrap gap-1.5 items-center">
               <span className="text-xs text-muted-foreground">Client:</span>
               <FilterChips
                 items={clients}
                 paramName="client"
-                active={sp.client ?? null}
+                active={null}
                 sp={sp}
               />
             </div>

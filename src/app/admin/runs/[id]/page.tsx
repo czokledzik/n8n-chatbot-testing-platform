@@ -24,6 +24,8 @@ import { DevStatusCard } from "./dev-status-card";
 import { ReRunButton } from "./rerun-button";
 import { ImprovementCard } from "./improvement-card";
 import { DeleteRunButton } from "./delete-button";
+import { VersionSwitcher } from "@/components/version-switcher";
+import { versionEntriesForTestCase } from "@/lib/version-entries";
 
 function avg(nums: (number | null)[]) {
   const ok = nums.filter((n): n is number => typeof n === "number");
@@ -81,6 +83,14 @@ export default async function RunDetailPage({
   }
 
   const avgResponse = avg(run.messages.map((m) => m.responseTimeMs));
+
+  const versionEntries =
+    run.testCaseId && run.clientId
+      ? await versionEntriesForTestCase({
+          clientId: run.clientId,
+          testCaseId: run.testCaseId,
+        })
+      : [];
 
   return (
     <div className="space-y-6">
@@ -163,6 +173,14 @@ export default async function RunDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6 min-w-0">
+          {versionEntries.length > 1 && (
+            <VersionSwitcher
+              entries={versionEntries}
+              currentRunId={run.id}
+              runHrefBase="/admin/runs"
+            />
+          )}
+
           {run.sourceRun && (
             <ImprovementCard
               runId={run.id}

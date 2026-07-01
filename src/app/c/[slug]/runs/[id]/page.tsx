@@ -22,6 +22,8 @@ import {
 import { ClientCommentThread } from "./client-comment-thread";
 import { LiveChatBox } from "./live-chat-box";
 import { ClientReviewCard } from "./client-review-card";
+import { VersionSwitcher } from "@/components/version-switcher";
+import { versionEntriesForTestCase } from "@/lib/version-entries";
 
 export default async function ClientRunDetail({
   params,
@@ -62,6 +64,13 @@ export default async function ClientRunDetail({
     if (!commentsByMessage.has(c.targetId)) commentsByMessage.set(c.targetId, []);
     commentsByMessage.get(c.targetId)!.push(c);
   }
+
+  const versionEntries = run.testCaseId
+    ? await versionEntriesForTestCase({
+        clientId: client.id,
+        testCaseId: run.testCaseId,
+      })
+    : [];
 
   return (
     <div className="space-y-6">
@@ -115,6 +124,15 @@ export default async function ClientRunDetail({
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6 min-w-0">
+          {versionEntries.length > 1 && (
+            <VersionSwitcher
+              entries={versionEntries}
+              currentRunId={run.id}
+              runHrefBase={`/c/${slug}/runs`}
+              description="Same test case run against different bot versions. Click a card to open it."
+            />
+          )}
+
           {run.status === "error" && run.judgeReason && (
             <Card className="border-destructive/40 bg-destructive/5">
               <CardHeader>

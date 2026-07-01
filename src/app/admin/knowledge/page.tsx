@@ -10,9 +10,12 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/db";
+import { getScopedClientId } from "@/lib/admin-scope";
 
 export default async function KnowledgePage() {
+  const scopedClientId = await getScopedClientId();
   const items = await prisma.knowledge.findMany({
+    where: scopedClientId ? { clientId: scopedClientId } : {},
     orderBy: { createdAt: "desc" },
     include: {
       _count: { select: { testCases: true } },

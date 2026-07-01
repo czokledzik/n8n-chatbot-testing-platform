@@ -18,8 +18,16 @@ import {
 import { prisma } from "@/lib/db";
 import { getSettings } from "@/lib/settings";
 import { Separator } from "@/components/ui/separator";
+import { getScopedClientId } from "@/lib/admin-scope";
 
 export default async function HomePage() {
+  const scopedClientId = await getScopedClientId();
+  const clientScope = scopedClientId ? { clientId: scopedClientId } : {};
+  const knowledgeScope = scopedClientId ? { clientId: scopedClientId } : {};
+  const testCaseScope = scopedClientId
+    ? { knowledge: { clientId: scopedClientId } }
+    : {};
+
   const [
     knowledgeCount,
     testCaseCount,
@@ -30,13 +38,19 @@ export default async function HomePage() {
     fixedCount,
     settings,
   ] = await Promise.all([
-    prisma.knowledge.count(),
-    prisma.testCase.count(),
-    prisma.testRun.count(),
+    prisma.knowledge.count({ where: knowledgeScope }),
+    prisma.testCase.count({ where: testCaseScope }),
+    prisma.testRun.count({ where: clientScope }),
     prisma.client.count(),
-    prisma.testRun.count({ where: { clientVerdict: "pass" } }),
-    prisma.testRun.count({ where: { clientVerdict: "fail" } }),
-    prisma.testRun.count({ where: { devFixedAt: { not: null } } }),
+    prisma.testRun.count({
+      where: { ...clientScope, clientVerdict: "pass" },
+    }),
+    prisma.testRun.count({
+      where: { ...clientScope, clientVerdict: "fail" },
+    }),
+    prisma.testRun.count({
+      where: { ...clientScope, devFixedAt: { not: null } },
+    }),
     getSettings(),
   ]);
 

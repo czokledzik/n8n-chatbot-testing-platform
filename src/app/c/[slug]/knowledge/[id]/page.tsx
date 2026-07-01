@@ -82,25 +82,30 @@ export default async function ClientKnowledgeDetail({
           ) : (
             <ul className="divide-y">
               {knowledge.testCases.map((tc) => (
-                <li key={tc.id} className="py-4 first:pt-0 last:pb-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-medium text-sm">{tc.title}</h3>
-                    <Badge variant="secondary" className="text-xs">
-                      {tc._count.runs} runs
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground line-clamp-1">
-                    <span className="font-medium text-foreground/70">
-                      Persona:
-                    </span>{" "}
-                    {tc.persona}
-                  </p>
-                  <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                    <span className="font-medium text-foreground/70">
-                      Goal:
-                    </span>{" "}
-                    {tc.goal}
-                  </p>
+                <li key={tc.id} className="py-3 first:pt-0 last:pb-0">
+                  <Link
+                    href={`/c/${slug}/knowledge/${knowledge.id}/tests/${tc.id}`}
+                    className="block -mx-4 px-4 py-1 hover:bg-muted/40 rounded-md transition-colors"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-medium text-sm">{tc.title}</h3>
+                      <Badge variant="secondary" className="text-xs">
+                        {tc._count.runs} run{tc._count.runs === 1 ? "" : "s"}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-1">
+                      <span className="font-medium text-foreground/70">
+                        Persona:
+                      </span>{" "}
+                      {tc.persona}
+                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                      <span className="font-medium text-foreground/70">
+                        Goal:
+                      </span>{" "}
+                      {tc.goal}
+                    </p>
+                  </Link>
                 </li>
               ))}
             </ul>

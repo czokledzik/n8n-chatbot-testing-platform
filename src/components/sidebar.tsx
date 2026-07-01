@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ScopeSelector } from "@/components/scope-selector";
 
 const navItems = [
   { href: "/admin", label: "Overview", icon: Home, exact: true },
@@ -23,7 +24,13 @@ const navItems = [
   { href: "/admin/settings", label: "Settings", icon: SettingsIcon },
 ];
 
-export function Sidebar() {
+export function Sidebar({
+  clients,
+  scopedClientId,
+}: {
+  clients: { id: string; name: string }[];
+  scopedClientId: string | null;
+}) {
   const pathname = usePathname();
 
   return (
@@ -38,6 +45,9 @@ export function Sidebar() {
           </div>
           <div className="text-xs text-muted-foreground">Admin</div>
         </div>
+      </div>
+      <div className="px-3 pt-3">
+        <ScopeSelector clients={clients} currentId={scopedClientId} />
       </div>
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems.map(({ href, label, icon: Icon, exact }) => {
