@@ -1,36 +1,151 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Chatbot Testing Platform
 
-## Getting Started
+A testing workbench for n8n chatbots. It generates adversarial test scenarios with an LLM, runs multi-turn conversations against your bot, tracks results across bot versions, and gives each client a private portal to review transcripts and flag issues.
 
-First, run the development server:
+![Admin run detail with version comparison](docs/screenshots/admin-run-detail.png)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Why this exists
+
+Testing a chatbot by hand does not scale. You paste the same questions after every prompt change, you forget which cases regressed, and your client finds the bugs before you do.
+
+This platform automates that loop. You paste the bot's knowledge base (text or PDF), the app generates realistic test personas, and a simulated user talks to your bot through its n8n webhook. Every conversation is stored with response times. When you ship a new bot version, you re-run the same cases and compare results side by side. Clients get a magic link to review conversations, mark pass or fail, tag issues, and chat with the bot live.
+
+## Features
+
+**Test generation and execution**
+- Paste text or upload PDFs as the bot's reference knowledge, in bulk if needed
+- LLM generates test cases with a persona, a goal, and success criteria
+- A simulated user drives multi-turn conversations against your n8n webhook
+- Response time is tracked per bot message
+
+**Versioning and comparison**
+- Register bot versions, each with its own webhook URL
+- Re-run a test case on a new version: the simulator gets the old transcript and the client's comments so it probes the same problems
+- LLM improvement check compares old and new runs and says whether the bot got better
+- Per-version status pills on every test case, plus a heatmap of test cases against versions
+
+![Version heatmap](docs/screenshots/admin-client-dashboard.png)
+
+**Review workflow**
+- Clients mark runs as pass, fail, or needs review, tag issues (hallucination, wrong tone, incomplete answer, and so on), and comment on individual messages
+- Devs mark runs as fixed with a note about what changed
+- Batch analysis: select failed runs and the LLM clusters them into common root causes
+
+![Batch analysis](docs/screenshots/admin-batch-analysis.png)
+
+**Client portal**
+- Magic link access, no accounts or passwords
+- Read-only view of knowledge, test cases, and transcripts, scoped strictly to that client
+- Live chat with the bot, every session saved
+- Pass rate charts per bot version and top issue tags
+
+![Client portal overview](docs/screenshots/client-overview.png)
+
+**Admin panel**
+- Scope selector filters every tab to one client, since you usually work on one project at a time
+- Tabular run view with multi-select bulk actions: mark fixed, delete, analyze
+- CSV, JSON, and Markdown exports
+- Light and dark theme
+
+![Dark mode](docs/screenshots/dark-mode.png)
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 16 (App Router, Server Actions) |
+| Database | PostgreSQL (Supabase) via Prisma 7 |
+| LLM | OpenAI API (test generation, user simulation, comparisons, batch analysis) |
+| Styling | Tailwind CSS 4 + shadcn/ui |
+| Deployment | Vercel |
+
+There are no custom API routes for mutations. Everything goes through Server Actions with per-request auth checks. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the data model, the auth design, and the run engine internals.
+
+## How a test run works
+
+```mermaid
+sequenceDiagram
+    participant A as Admin
+    participant E as Run engine
+    participant S as User simulator (OpenAI)
+    participant N as n8n webhook (your bot)
+
+    A->>E: Run test case
+    loop up to 6 turns
+        E->>S: persona + goal + history
+        S-->>E: next user message
+        E->>N: POST {message, sessionId}
+        N-->>E: bot reply (+ response time)
+    end
+    E->>E: save transcript, mark done
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The simulator plays a specific persona chasing a specific goal, so conversations look like real users, not scripted checklists. On re-runs it also receives the previous transcript and client comments, which keeps it focused on the exact problems that were flagged.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Getting started
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Requirements: Node 20+, a PostgreSQL database (Supabase free tier works), an OpenAI API key, and an n8n workflow with a webhook that accepts `POST {message, sessionId}` and responds with `{output: "..."}`.
 
-## Learn More
+```bash
+git clone https://github.com/czokledzik/chatbot-testing.git
+cd chatbot-testing
+npm install
 
-To learn more about Next.js, take a look at the following resources:
+cp .env.example .env
+# fill in DATABASE_URL, DIRECT_URL, ADMIN_USER, ADMIN_PASSWORD
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+npx prisma migrate deploy
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open http://localhost:3000/admin, sign in with your admin credentials, and set your OpenAI API key under Settings. Then create a client, add a bot version with your n8n webhook URL, paste some knowledge, and generate your first test cases.
 
-## Deploy on Vercel
+### Environment variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres connection string for the app (pooled, port 6543 on Supabase) |
+| `DIRECT_URL` | Direct Postgres connection for migrations (port 5432) |
+| `ADMIN_USER` | Basic Auth username for `/admin` |
+| `ADMIN_PASSWORD` | Basic Auth password for `/admin` |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The OpenAI API key and the fallback n8n webhook URL are stored in the database and managed from the Settings page, not in env vars.
+
+### Deploying
+
+The app runs as-is on Vercel. Import the repo, set the four env vars, and deploy. The build script runs `prisma generate` automatically. Run `npx prisma migrate deploy` against your production database before the first deploy or after schema changes.
+
+## Project structure
+
+```
+src/
+  app/
+    admin/          admin panel (Basic Auth via src/proxy.ts)
+    c/[slug]/       client portal (magic link cookie auth)
+    page.tsx        public landing
+  components/       shared UI (sidebar, badges, version switcher, theme)
+  lib/
+    run-engine.ts   conversation loop
+    simulator.ts    LLM user simulation
+    n8n.ts          webhook caller with version-aware URL resolution
+    improvement.ts  old-vs-new run comparison
+    batch-analysis.ts  failure clustering
+    export.ts       CSV / JSON / Markdown builders
+prisma/
+  schema.prisma     data model (Client, BotVersion, Knowledge, TestCase, TestRun, ...)
+```
+
+## Known limitations
+
+This started as a single-admin MVP and some tradeoffs reflect that:
+
+- The OpenAI key is stored in plaintext in the database. Fine for a single-operator deployment, not for multi-tenant use.
+- Runs execute as fire-and-forget promises inside the request lifecycle. On serverless this holds up because functions stay alive long enough, but a proper job queue would be more robust.
+- No rate limiting on the client live chat.
+- Client sessions use the access token hash directly as the cookie value instead of short-lived signed sessions.
+- No automated tests yet. The Prisma schema plus TypeScript strict mode plus ESLint catch a lot, but not everything.
+- Lists cap at 100 to 200 items without pagination.
+
+## License
+
+MIT
