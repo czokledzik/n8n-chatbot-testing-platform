@@ -1,4 +1,4 @@
-# Chatbot Testing Platform
+# N8N Chatbot Testing Platform
 
 A testing workbench for n8n chatbots. It generates adversarial test scenarios with an LLM, runs multi-turn conversations against your bot, tracks results across bot versions, and gives each client a private portal to review transcripts and flag issues.
 
