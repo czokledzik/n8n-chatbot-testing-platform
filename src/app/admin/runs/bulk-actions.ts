@@ -47,3 +47,15 @@ export async function bulkAnalyze(input: {
   revalidatePath(`/admin/clients/${clientId}`);
   redirect(`/admin/analyses/${reportId}`);
 }
+
+export async function bulkDeleteRuns(input: {
+  runIds: string[];
+}): Promise<{ ok: boolean; count: number }> {
+  if (input.runIds.length === 0) return { ok: true, count: 0 };
+  const result = await prisma.testRun.deleteMany({
+    where: { id: { in: input.runIds } },
+  });
+  revalidatePath("/admin/runs");
+  revalidatePath("/admin");
+  return { ok: true, count: result.count };
+}

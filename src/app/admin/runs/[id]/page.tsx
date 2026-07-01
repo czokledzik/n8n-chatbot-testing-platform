@@ -23,6 +23,7 @@ import { NotesTextarea } from "./notes-textarea";
 import { DevStatusCard } from "./dev-status-card";
 import { ReRunButton } from "./rerun-button";
 import { ImprovementCard } from "./improvement-card";
+import { DeleteRunButton } from "./delete-button";
 
 function avg(nums: (number | null)[]) {
   const ok = nums.filter((n): n is number => typeof n === "number");
@@ -152,6 +153,10 @@ export default async function RunDetailPage({
             >
               Export .md
             </a>
+            <DeleteRunButton
+              runId={run.id}
+              runLabel={run.testCase?.title ?? "Live conversation"}
+            />
           </div>
         </div>
       </header>

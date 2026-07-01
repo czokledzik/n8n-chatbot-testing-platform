@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Loader2,
   Sparkles,
+  Trash2,
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,7 +17,7 @@ import {
   ClientVerdictBadge,
   IssueTagsDisplay,
 } from "@/components/issue-tags-display";
-import { bulkMarkFixed, bulkAnalyze } from "./bulk-actions";
+import { bulkMarkFixed, bulkAnalyze, bulkDeleteRuns } from "./bulk-actions";
 
 export type RunRow = {
   id: string;
@@ -25,6 +26,8 @@ export type RunRow = {
   devFixedAt: Date | null;
   botVersionLabel: string | null;
   testCaseTitle: string | null;
+  knowledgeId: string | null;
+  knowledgeTitle: string | null;
   clientName: string | null;
   clientSlug: string | null;
   messageCount: number;
@@ -49,7 +52,13 @@ function formatDuration(start: Date, end: Date | null) {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-export function RunsTable({ rows }: { rows: RunRow[] }) {
+export function RunsTable({
+  rows,
+  groupBy = "none",
+}: {
+  rows: RunRow[];
+  groupBy?: "none" | "document";
+}) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
 
@@ -86,10 +95,51 @@ export function RunsTable({ rows }: { rows: RunRow[] }) {
     return clients.size;
   }, [rows, selected]);
 
+  const groups = useMemo(() => {
+    if (groupBy !== "document") return null;
+    const map = new Map<string, { title: string; rows: RunRow[] }>();
+    for (const r of rows) {
+      const key = r.knowledgeId ?? "__none__";
+      const title = r.knowledgeTitle ?? "No document";
+      if (!map.has(key)) map.set(key, { title, rows: [] });
+      map.get(key)!.rows.push(r);
+    }
+    return [...map.entries()].map(([key, value]) => ({
+      key,
+      title: value.title,
+      rows: value.rows,
+    }));
+  }, [rows, groupBy]);
+
+  function toggleGroup(groupRows: RunRow[]) {
+    const ids = groupRows.map((r) => r.id);
+    const allSelected = ids.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
   function handleMarkFixed() {
     startTransition(async () => {
       const res = await bulkMarkFixed({ runIds: selectedIds, fixed: true });
       toast.success(`Marked ${res.count} run${res.count === 1 ? "" : "s"} as fixed`);
+      setSelected(new Set());
+    });
+  }
+
+  function handleDelete() {
+    if (
+      !confirm(
+        `Delete ${selectedIds.length} run${selectedIds.length === 1 ? "" : "s"}? This cannot be undone.`,
+      )
+    )
+      return;
+    startTransition(async () => {
+      const res = await bulkDeleteRuns({ runIds: selectedIds });
+      toast.success(`Deleted ${res.count} run${res.count === 1 ? "" : "s"}`);
       setSelected(new Set());
     });
   }
@@ -148,6 +198,20 @@ export function RunsTable({ rows }: { rows: RunRow[] }) {
             </Button>
             <Button
               size="sm"
+              variant="ghost"
+              onClick={handleDelete}
+              disabled={pending}
+              className="text-destructive hover:text-destructive"
+            >
+              {pending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Delete
+            </Button>
+            <Button
+              size="sm"
               onClick={handleAnalyze}
               disabled={pending || selectedClients !== 1 || selected.size > 30}
               title={
@@ -186,6 +250,7 @@ export function RunsTable({ rows }: { rows: RunRow[] }) {
               <th className="px-3 py-2 text-left">Fixed</th>
               <th className="px-3 py-2 text-left">Version</th>
               <th className="px-3 py-2 text-left">Test case</th>
+              <th className="px-3 py-2 text-left">Document</th>
               <th className="px-3 py-2 text-left">Client</th>
               <th className="px-3 py-2 text-left">Tags</th>
               <th className="px-3 py-2 text-right">Msg</th>
@@ -195,7 +260,34 @@ export function RunsTable({ rows }: { rows: RunRow[] }) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {rows.map((r) => {
+            {(groups ? groups.flatMap((g) => [
+              { type: "header" as const, key: `h-${g.key}`, group: g },
+              ...g.rows.map((r) => ({ type: "row" as const, key: r.id, row: r })),
+            ]) : rows.map((r) => ({ type: "row" as const, key: r.id, row: r }))).map((item) => {
+              if (item.type === "header") {
+                const g = item.group;
+                const groupIds = g.rows.map((r) => r.id);
+                const allSelected = groupIds.every((id) => selected.has(id));
+                return (
+                  <tr key={item.key} className="bg-muted/60">
+                    <td className="px-3 py-1.5">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={() => toggleGroup(g.rows)}
+                        className="h-4 w-4"
+                      />
+                    </td>
+                    <td colSpan={12} className="px-3 py-1.5 text-xs font-medium">
+                      {g.title}{" "}
+                      <span className="text-muted-foreground">
+                        · {g.rows.length} run{g.rows.length === 1 ? "" : "s"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              }
+              const r = item.row;
               const isSelected = selected.has(r.id);
               return (
                 <tr
@@ -236,6 +328,18 @@ export function RunsTable({ rows }: { rows: RunRow[] }) {
                       {r.testCaseTitle ??
                         (r.source === "live" ? "Live conversation" : "—")}
                     </Link>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground max-w-[160px] truncate">
+                    {r.knowledgeId ? (
+                      <Link
+                        href={`/admin/knowledge/${r.knowledgeId}`}
+                        className="hover:underline"
+                      >
+                        {r.knowledgeTitle}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">
                     {r.clientName ?? "—"}

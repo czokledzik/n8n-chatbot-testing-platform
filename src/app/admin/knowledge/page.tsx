@@ -29,10 +29,18 @@ export default async function KnowledgePage() {
             Reference text the chatbot is expected to know.
           </p>
         </div>
-        <Link href="/admin/knowledge/new" className={buttonVariants()}>
-          <Plus className="h-4 w-4" />
-          New Knowledge
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/admin/knowledge/batch-new"
+            className={buttonVariants({ variant: "outline" })}
+          >
+            Batch upload
+          </Link>
+          <Link href="/admin/knowledge/new" className={buttonVariants()}>
+            <Plus className="h-4 w-4" />
+            New Knowledge
+          </Link>
+        </div>
       </header>
 
       {items.length === 0 ? (

@@ -84,10 +84,21 @@ export function NewKnowledgeForm({
         <Textarea
           id="content"
           name="content"
-          rows={14}
+          rows={12}
           placeholder="Paste your knowledge text here..."
-          required
         />
+        <div className="space-y-1">
+          <Label htmlFor="pdf" className="text-xs text-muted-foreground">
+            Or upload a PDF (max 15MB) — replaces the text above
+          </Label>
+          <input
+            id="pdf"
+            name="pdf"
+            type="file"
+            accept="application/pdf,.pdf"
+            className="text-xs file:mr-2 file:rounded-md file:border file:border-border file:bg-background file:px-3 file:py-1 file:text-xs hover:file:bg-muted"
+          />
+        </div>
         {state.fieldErrors?.content && (
           <p className="text-xs text-destructive">
             {state.fieldErrors.content}

@@ -48,10 +48,24 @@ function avg(nums: (number | null)[]) {
   return Math.round(ok.reduce((a, b) => a + b, 0) / ok.length);
 }
 
+function buildQuery(base: Record<string, string | null | undefined>) {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(base)) {
+    if (v) sp.set(k, v);
+  }
+  const s = sp.toString();
+  return s ? `?${s}` : "";
+}
+
 export default async function RunsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string; client?: string }>;
+  searchParams: Promise<{
+    filter?: string;
+    client?: string;
+    knowledge?: string;
+    group?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const allowed: Filter[] = [
@@ -66,17 +80,27 @@ export default async function RunsPage({
   const filter: Filter = (allowed as string[]).includes(sp.filter ?? "all")
     ? (sp.filter as Filter)
     : "all";
+  const groupBy = sp.group === "document" ? "document" : "none";
 
   const filterWhere = whereForFilter(filter);
   const clientWhere = sp.client ? { clientId: sp.client } : {};
-  const where = { ...filterWhere, ...clientWhere };
+  const knowledgeWhere = sp.knowledge
+    ? { testCase: { knowledgeId: sp.knowledge } }
+    : {};
+  const where = { ...filterWhere, ...clientWhere, ...knowledgeWhere };
 
-  const [runs, counts, clients] = await Promise.all([
+  const [runs, counts, clients, knowledgeList] = await Promise.all([
     prisma.testRun.findMany({
       where,
       orderBy: { startedAt: "desc" },
       include: {
-        testCase: { select: { title: true } },
+        testCase: {
+          select: {
+            title: true,
+            knowledgeId: true,
+            knowledge: { select: { id: true, title: true } },
+          },
+        },
         client: { select: { name: true, slug: true } },
         botVersion: { select: { label: true } },
         messages: { select: { responseTimeMs: true } },
@@ -84,18 +108,36 @@ export default async function RunsPage({
       take: 200,
     }),
     Promise.all([
-      prisma.testRun.count({ where: clientWhere }),
-      prisma.testRun.count({ where: { ...clientWhere, clientVerdict: "pass" } }),
-      prisma.testRun.count({ where: { ...clientWhere, clientVerdict: "fail" } }),
+      prisma.testRun.count({ where: { ...clientWhere, ...knowledgeWhere } }),
       prisma.testRun.count({
-        where: { ...clientWhere, clientVerdict: "needs-review" },
+        where: { ...clientWhere, ...knowledgeWhere, clientVerdict: "pass" },
       }),
       prisma.testRun.count({
-        where: { ...clientWhere, devFixedAt: { not: null } },
+        where: { ...clientWhere, ...knowledgeWhere, clientVerdict: "fail" },
       }),
-      prisma.testRun.count({ where: { ...clientWhere, status: "error" } }),
       prisma.testRun.count({
-        where: { ...clientWhere, status: { in: ["pending", "running"] } },
+        where: {
+          ...clientWhere,
+          ...knowledgeWhere,
+          clientVerdict: "needs-review",
+        },
+      }),
+      prisma.testRun.count({
+        where: {
+          ...clientWhere,
+          ...knowledgeWhere,
+          devFixedAt: { not: null },
+        },
+      }),
+      prisma.testRun.count({
+        where: { ...clientWhere, ...knowledgeWhere, status: "error" },
+      }),
+      prisma.testRun.count({
+        where: {
+          ...clientWhere,
+          ...knowledgeWhere,
+          status: { in: ["pending", "running"] },
+        },
       }),
     ]).then(([all, passed, failed, needsReview, fixed, errors, active]) => ({
       all,
@@ -110,6 +152,11 @@ export default async function RunsPage({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    prisma.knowledge.findMany({
+      where: sp.client ? { clientId: sp.client } : {},
+      orderBy: { title: "asc" },
+      select: { id: true, title: true },
+    }),
   ]);
 
   const hasActive = counts.active > 0;
@@ -121,6 +168,8 @@ export default async function RunsPage({
     devFixedAt: r.devFixedAt,
     botVersionLabel: r.botVersion?.label ?? null,
     testCaseTitle: r.testCase?.title ?? null,
+    knowledgeId: r.testCase?.knowledge?.id ?? null,
+    knowledgeTitle: r.testCase?.knowledge?.title ?? null,
     clientName: r.client?.name ?? null,
     clientSlug: r.client?.slug ?? null,
     messageCount: r.messages.length,
@@ -130,6 +179,8 @@ export default async function RunsPage({
     startedAt: r.startedAt,
     finishedAt: r.finishedAt,
   }));
+
+  const exportQuery = buildQuery({ clientId: sp.client });
 
   return (
     <div className="space-y-6">
@@ -145,17 +196,19 @@ export default async function RunsPage({
           </p>
         </div>
         {counts.all > 0 && (
-          <div className="flex gap-2 text-sm">
+          <div className="flex gap-2 text-sm items-center">
+            <GroupToggle group={groupBy} sp={sp} />
+            <span className="text-muted-foreground">·</span>
             <a
-              href={`/admin/export/runs.csv${sp.client ? `?clientId=${sp.client}` : ""}`}
+              href={`/admin/export/runs.csv${exportQuery}`}
               className="text-primary hover:underline"
               download
             >
-              Export CSV
+              CSV
             </a>
             <span className="text-muted-foreground">·</span>
             <a
-              href={`/admin/export/runs.json${sp.client ? `?clientId=${sp.client}` : ""}`}
+              href={`/admin/export/runs.json${exportQuery}`}
               className="text-primary hover:underline"
               download
             >
@@ -171,7 +224,23 @@ export default async function RunsPage({
           {clients.length > 0 && (
             <div className="flex flex-wrap gap-1.5 items-center">
               <span className="text-xs text-muted-foreground">Client:</span>
-              <ClientFilter clients={clients} active={sp.client ?? null} filter={filter} />
+              <FilterChips
+                items={clients}
+                paramName="client"
+                active={sp.client ?? null}
+                sp={sp}
+              />
+            </div>
+          )}
+          {knowledgeList.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs text-muted-foreground">Document:</span>
+              <FilterChips
+                items={knowledgeList.map((k) => ({ id: k.id, name: k.title }))}
+                paramName="knowledge"
+                active={sp.knowledge ?? null}
+                sp={sp}
+              />
             </div>
           )}
         </div>
@@ -194,26 +263,62 @@ export default async function RunsPage({
           </CardHeader>
         </Card>
       ) : (
-        <RunsTable rows={rows} />
+        <RunsTable rows={rows} groupBy={groupBy} />
       )}
     </div>
   );
 }
 
-function ClientFilter({
-  clients,
-  active,
-  filter,
+function GroupToggle({
+  group,
+  sp,
 }: {
-  clients: { id: string; name: string }[];
-  active: string | null;
-  filter: string;
+  group: string;
+  sp: Record<string, string | undefined>;
 }) {
-  const base = filter === "all" ? "" : `filter=${filter}`;
+  const nextGroup = group === "document" ? null : "document";
+  const params = new URLSearchParams();
+  if (sp.filter && sp.filter !== "all") params.set("filter", sp.filter);
+  if (sp.client) params.set("client", sp.client);
+  if (sp.knowledge) params.set("knowledge", sp.knowledge);
+  if (nextGroup) params.set("group", nextGroup);
+  const href = `/admin/runs${params.toString() ? "?" + params.toString() : ""}`;
+  return (
+    <Link
+      href={href}
+      className={`text-primary hover:underline ${group === "document" ? "font-semibold" : ""}`}
+    >
+      {group === "document" ? "Ungroup" : "Group by document"}
+    </Link>
+  );
+}
+
+function FilterChips({
+  items,
+  paramName,
+  active,
+  sp,
+}: {
+  items: { id: string; name: string }[];
+  paramName: string;
+  active: string | null;
+  sp: Record<string, string | undefined>;
+}) {
+  const build = (id: string | null) => {
+    const params = new URLSearchParams();
+    if (sp.filter && sp.filter !== "all") params.set("filter", sp.filter);
+    if (sp.group === "document") params.set("group", "document");
+    if (paramName !== "client" && sp.client) params.set("client", sp.client);
+    if (paramName !== "knowledge" && sp.knowledge)
+      params.set("knowledge", sp.knowledge);
+    if (id) params.set(paramName, id);
+    return params.toString() ? `?${params.toString()}` : "";
+  };
+
   return (
     <>
       <Link
-        href={`/admin/runs${base ? "?" + base : ""}`}
+        href={`/admin/runs${build(null)}`}
         className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
           active === null
             ? "bg-primary text-primary-foreground border-primary"
@@ -222,22 +327,19 @@ function ClientFilter({
       >
         All
       </Link>
-      {clients.map((c) => {
-        const isActive = active === c.id;
-        const params = new URLSearchParams();
-        if (filter !== "all") params.set("filter", filter);
-        params.set("client", c.id);
+      {items.map((it) => {
+        const isActive = active === it.id;
         return (
           <Link
-            key={c.id}
-            href={`/admin/runs?${params.toString()}`}
+            key={it.id}
+            href={`/admin/runs${build(it.id)}`}
             className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
               isActive
                 ? "bg-primary text-primary-foreground border-primary"
                 : "border-border text-muted-foreground hover:bg-muted"
             }`}
           >
-            {c.name}
+            {it.name}
           </Link>
         );
       })}

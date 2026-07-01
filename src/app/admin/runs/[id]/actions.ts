@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { judgeRun } from "@/lib/judge";
 
@@ -16,11 +17,11 @@ export async function rejudge(runId: string): Promise<{ ok: boolean; error?: str
   }
 }
 
-export async function deleteRun(runId: string): Promise<{ ok: boolean }> {
+export async function deleteRunAndRedirect(runId: string): Promise<never> {
   await prisma.testRun.delete({ where: { id: runId } });
   revalidatePath("/admin/runs");
   revalidatePath("/admin");
-  return { ok: true };
+  redirect("/admin/runs");
 }
 
 export async function setDevFixed(input: {
